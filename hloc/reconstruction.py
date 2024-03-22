@@ -24,6 +24,9 @@ def create_empty_db(database_path: Path):
     logger.info("Creating an empty database...")
     db = COLMAPDatabase.connect(database_path)
     db.create_tables()
+    #cam_id = 0
+    #cam_tuple = (1, 1022, 766, tuple((710.197998046875, 710.197998046875, 516.6893310546875, 384.78317260742188)))
+    #db.add_camera(*cam_tuple, camera_id=cam_id)
     db.commit()
     db.close()
 
@@ -36,6 +39,7 @@ def import_images(
     options: Optional[Dict[str, Any]] = None,
 ):
     logger.info("Importing images into the database...")
+    options = {"camera_model": "PINHOLE"}
     if options is None:
         options = {}
     images = list(image_dir.iterdir())
@@ -109,7 +113,7 @@ def main(
     pairs: Path,
     features: Path,
     matches: Path,
-    camera_mode: pycolmap.CameraMode = pycolmap.CameraMode.AUTO,
+    camera_mode: pycolmap.CameraMode = pycolmap.CameraMode.SINGLE,
     verbose: bool = False,
     skip_geometric_verification: bool = False,
     min_match_score: Optional[float] = None,
@@ -124,7 +128,7 @@ def main(
     sfm_dir.mkdir(parents=True, exist_ok=True)
     database = sfm_dir / "database.db"
 
-    create_empty_db(database)
+    create_empty_db(database) # Modified this function to add single camera
     import_images(image_dir, database, camera_mode, image_list, image_options)
     image_ids = get_image_ids(database)
     import_features(image_ids, database, features)
