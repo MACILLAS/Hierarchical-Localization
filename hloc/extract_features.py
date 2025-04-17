@@ -53,6 +53,21 @@ confs = {
             "resize_force": True,
         },
     },
+    # Resize images to 1600px even if they are originally smaller.
+    # Improves the keypoint localization if the images are of good quality.
+    "superpoint_max_max": {
+        "output": "feats-superpoint-n8192-rma4056",
+        "model": {
+            "name": "superpoint",
+            "nms_radius": 3,
+            "max_keypoints": 8192,
+        },
+        "preprocessing": {
+            "grayscale": True,
+            "resize_max": 4056,
+            "resize_force": True,
+        },
+    },
     "superpoint_inloc": {
         "output": "feats-superpoint-n4096-r1600",
         "model": {
@@ -227,6 +242,7 @@ def main(
     image_list: Optional[Union[Path, List[str]]] = None,
     feature_path: Optional[Path] = None,
     overwrite: bool = False,
+    mask_dir: Optional[Path] = None,
 ) -> Path:
     logger.info(
         "Extracting local features with configuration:" f"\n{pprint.pformat(conf)}"
@@ -261,6 +277,12 @@ def main(
             size = np.array(data["image"].shape[-2:][::-1])
             scales = (original_size / size).astype(np.float32)
             pred["keypoints"] = (pred["keypoints"] + 0.5) * scales[None] - 0.5
+            if mask_dir is not None:
+                mask = cv2.imread(str(mask_dir/name)+'.png')[:,:,0]
+                valid_keypoint = mask[pred['keypoints'][:, 1].astype('int'), pred['keypoints'][:, 0].astype('int')]
+                pred['keypoints'] = pred['keypoints'][valid_keypoint > 0]
+                pred['descriptors'] = pred['descriptors'][:, valid_keypoint > 0]
+                pred['scores'] = pred['scores'][valid_keypoint > 0]
             if "scales" in pred:
                 pred["scales"] *= scales.mean()
             # add keypoint uncertainties scaled to the original resolution
