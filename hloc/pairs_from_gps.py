@@ -95,7 +95,7 @@ def get_gps_pos(image_path: Path) -> Tuple[float, float, float, np.ndarray, date
 
                 date = parser.parse(root[0][0].get('{http://ns.adobe.com/xap/1.0/}CreateDate'))
                 #date = parser.parse(img._getexif()[36867])
-                print(date)
+                #print(date)
 
             found = True
             break
@@ -140,21 +140,30 @@ def main(output,
 
     pairs = []
     for i in range(len(image_list)):
-        _, closest_pos = torch.topk(pos_dist[i], closest_geo, largest=False)
+        _, closest_pos = torch.topk(pos_dist[i], closest_geo*2, largest=False)
         _, closest_date = torch.topk(date_dist[i], closest_time, largest=False)
+
+        # Rotation matrix has shape: [N, 3, 3]
+        R_relative = torch.matmul(Rs[closest_pos].transpose(-2, -1).unsqueeze(1), Rs[i].unsqueeze(0))
+        # Calculate angle from trace, shape: [N, N]
+        angle = torch.acos(torch.clamp((R_relative.diagonal(dim1=-2, dim2=-1).sum(-1) - 1) / 2, -1, 1))
+        _, idx = torch.sort(angle[:, 0])
+        closest_pos = closest_pos[idx[:closest_geo]]
+
         for j in torch.cat((closest_pos, closest_date)).unique():
             if i == j:
                 continue
             pairs.append((image_list[i], image_list[j]))
 
     #logger.info(f'Found {len(pairs)} pairs.')
+
     with open(output, 'w') as f:
         f.write('\n'.join(' '.join(p) for p in pairs))
 
 
 if __name__ == "__main__":
     output = Path("/home/cviss/PycharmProjects/Hierarchical-Localization/outputs/uw_health_0318_SfM/sfm/pairs-gps.txt")
-    image_dir = Path("/home/cviss/Desktop/uwhealth_tripole_0318/output_images_exif_test")
+    image_dir = Path("/home/cviss/Desktop/uwhealth_tripole_0318/images")
     #image_dir = Path("/home/cviss/PycharmProjects/GS_Stream/output/Ford_Tower_06_07/images")
 
-    main(output=output, image_dir=image_dir, image_list=listdir(image_dir), closest_geo=0, closest_time=5)
+    main(output=output, image_dir=image_dir, image_list=listdir(image_dir), closest_geo=10, closest_time=0)
